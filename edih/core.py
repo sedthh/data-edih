@@ -61,6 +61,8 @@ class EDIH_GPT:
             raise ValueError(f"Nincs megadva OpenAI API kulcs a '{file}' fájlban {{'openai': '...'}} formátummal. Az alábbi címen generálhatsz sajátot: https://platform.openai.com/account/api-keys")
         elif data["openai"] == "OPEN_AI_SECRET_KEY":
             raise ValueError(f"Elfelejtettél beállítani OpenAI API kulcsot a '{file}' fájlban. Saját kulcsot itt generálhatsz: https://platform.openai.com/account/api-keys")
+        if "model" not in data.keys():
+            data["model"] = "gpt-3.5-turbo"  # gpt-4-32k
         if "website" not in data:
             data["website"] = "https://www.inf.elte.hu/"
         if "user_agent" not in data:
@@ -76,10 +78,13 @@ class EDIH_GPT:
     
     def reset(self):
         self.history = []
-        self.total_tokens = {
-            "sent": 0,
-            "received": 0,
-            "sum": 0,
+        self.tokens = {
+            "last_sent": 0,
+            "all_sent": 0,
+            "last_received": 0,
+            "all_received": 0,
+            "last_sum": 0,
+            "all_sum": 0,
         }
         self.total_api_calls = 0
         self.total_response_time = 0.
@@ -178,10 +183,10 @@ class EDIH_GPT:
             except UnicodeDecodeError:
                 return data.content.decode("utf-8", "backslashreplace")
                 
-    def cost(self, key: str = "sum", per_token: float = 0.002 / 1000.):
-        if key not in self.total_tokens:
-            raise ValueError(f"Az alábbi argumentumok érhetők el: {', '.join(list(self.total_tokens.keys()))}")
-        return self.total_tokens[key] * per_token
+    def cost(self, key: str = "all_sum", per_token: float = 0.002 / 1000.):
+        if key not in self.tokens:
+            raise ValueError(f"Ismeretlen '{key}', csak az alábbi értékek érhetők el: {', '.join(list(self.tokens.keys()))}")
+        return self.tokens[key] * per_token
     
     def log(self, *, file: Optional[str] = None, end: str = "\n\n") -> str:
         text = [f"{event['role'].upper()}: {event['content']}" for event in self.messages]
@@ -199,8 +204,6 @@ class EDIH_GPT:
     
     def chat(self, 
              content: str, 
-             *, 
-             model: str = "gpt-3.5-turbo",  # gpt-4-32k
              **kwargs) -> str:
         self.messages.append({"role": "user", 
                               "content": content})
@@ -208,7 +211,7 @@ class EDIH_GPT:
         now = time.time()
         self.total_api_calls += 1
         response = openai.ChatCompletion.create(
-            model = model,
+            model = self._system["model"],
             messages = self.messages,
             n = 1,
             stream = False,
@@ -219,9 +222,12 @@ class EDIH_GPT:
         
         self.history.append(response)
         
-        self.total_tokens["received"] += int(response["usage"]["completion_tokens"])
-        self.total_tokens["sent"] += int(response["usage"]["total_tokens"]) - self.total_tokens["sum"] - int(response["usage"]["completion_tokens"]) # int(response["usage"]["prompt_tokens"])
-        self.total_tokens["sum"] = int(response["usage"]["total_tokens"])
+        self.tokens["last_received"] += int(response["usage"]["completion_tokens"])
+        self.tokens["all_received"] += self.tokens["last_received"]
+        self.tokens["last_sent"] += int(response["usage"]["total_tokens"]) - self.tokens["last_sum"] - int(response["usage"]["completion_tokens"])
+        self.tokens["all_sent"] += self.tokens["last_sent"]
+        self.tokens["last_sum"] = int(response["usage"]["total_tokens"])
+        self.tokens["all_sum"] += self.tokens["last_sum"] 
         
         if response["choices"][0]["finish_reason"] == "content_filter":
             self._content_filter_alert()
