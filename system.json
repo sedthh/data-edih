@@ -1,0 +1,5 @@
+{
+	"openai": "OPEN_AI_SECRET_KEY",
+	"website": "http://www.my_website.com",
+	"parse": ["DATE", "FILE", "URL", "CSV", "EXCEL", "JSON"]
+}
