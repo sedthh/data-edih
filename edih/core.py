@@ -124,9 +124,20 @@ class EDIH_GPT:
                 for s in dom.select("script"):
                     s.extract()
             for i, part in enumerate(parts[1:]):
-                dom = dom.find("div", {"id": part})
+                if "#" in part:
+                    if part.startswith("#"):
+                        dom = dom.find("div", {"id": part[1:]})
+                    else:
+                        dom = dom.find(part.split("#")[0], {"id": part.split("#")[1]})
+                elif "." in part:
+                    if part.startswith("."):
+                        dom = dom.find("div", {"class": part[1:]})
+                    else:
+                        dom = dom.find(part.split(".")[0], {"class": part.split(".")[1]})
+                else:
+                    dom = dom.find(part)
                 if dom is None:
-                    raise ValueError(f"Could not find #div {' > '.join(parts[1:2+i])}")
+                    raise ValueError(f"Could not find {' > '.join(parts[1:2+i])}")
             text = dom.text.replace("&amp;", "&")
             text = "\n".join([t.strip() for t in text.splitlines()])
             return re.sub(r'\n{2,}', '\n\n', text).strip()
