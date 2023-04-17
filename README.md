@@ -39,6 +39,7 @@ Dolgozók jólétének javítására:
 - Személyi edző, edzésprogramok kitalálása célok kitűzésével
 
 További ötletek:
+- https://github.com/openai/openai-cookbook
 - https://github.com/f/awesome-chatgpt-prompts
 - https://writesonic.com/blog/chatgpt-use-cases/
 - https://analyticsindiamag.com/these-8-potential-use-cases-of-chatgpt-will-blow-your-mind/
@@ -48,6 +49,7 @@ További ötletek:
 - https://blog.wordbot.io/ai-artificial-intelligence/openai-gpt-3-top-22-trending-use-case-ideas-in-2022/
 - https://cookup.ai/chatgpt/usecases/
 - https://medium.com/mlearning-ai/the-chatgpt-list-of-lists-a-collection-of-1500-useful-mind-blowing-and-strange-use-cases-8b14c35eb
+- https://www.kdnuggets.com/2023/02/top-free-resources-learn-chatgpt.html
 
 ### Kibővített felhasználási lehetőségek
 TODO

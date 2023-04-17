@@ -6,6 +6,7 @@ from datetime import datetime
 import time
 import warnings
 from copy import deepcopy
+from enum import Enum
 
 try: 
     from BeautifulSoup import BeautifulSoup
@@ -14,7 +15,6 @@ except ImportError:
 
 import numpy as np
 import pandas as pd
-import tabulate, openpyxl
 
 import openai
 
@@ -45,7 +45,10 @@ class EDIH_GPT:
         self._setup_openai_api()
         
         self._user = str(user) if user is not None else ""
-        self._context = context
+        if isinstance(context, Enum):
+            self._context = context.value
+        else:
+            self._context = str(context)
         self.reset()
         
     
