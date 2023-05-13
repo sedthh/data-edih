@@ -1,9 +1,11 @@
 numpy
 pandas
+scipy
 requests
 pycurl
 certifi
 beautifulsoup4
 tabulate
 openpyxl
+tqdm
 openai
