@@ -1,6 +1,8 @@
-requests
 numpy
 pandas
+requests
+pycurl
+certifi
 beautifulsoup4
 tabulate
 openpyxl

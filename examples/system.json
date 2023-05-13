@@ -1,0 +1,5 @@
+{
+	"openai": "YOUR_API_KEY_HERE",
+	"website": "https://www.inf.elte.hu/",
+	"parse": ["DATE", "FILE", "URL", "CSV", "EXCEL", "JSON"]
+}

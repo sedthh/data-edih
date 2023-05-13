@@ -21,7 +21,7 @@ import openai
 from typing import Optional, Any
 
 
-class EDIH_GPT_WARNING(Warning):
+class EDIH_WARNING(Warning):
     
     def __init__(self, message):
         self.message = message
@@ -30,27 +30,17 @@ class EDIH_GPT_WARNING(Warning):
         return repr(self.message)
 
 
-class EDIH_GPT:
-    
-    VERSION = "0.0.1"
-    COMMANDS = ["DATE", "FILE", "URL", "CSV", "EXCEL", "JSON"]
+class EDIH_CORE:
+    VERSION = "0.0.2"
     
     def __init__(self, 
-                 context: Optional[str] = None,
                  *, 
                  user: Optional[str] = None,
                  system: str = "system.json", 
                  **kwargs) -> None:
         self._system = self._validate_system_data(system)
         self._setup_openai_api()
-        
         self._user = str(user) if user is not None else ""
-        if isinstance(context, Enum):
-            self._context = context.value
-        else:
-            self._context = str(context)
-        self.reset()
-        
     
     def _validate_system_data(self, file: str) -> dict:
         if not os.path.exists(file):
@@ -64,20 +54,83 @@ class EDIH_GPT:
             raise ValueError(f"Nincs megadva OpenAI API kulcs a '{file}' fájlban {{'openai': '...'}} formátummal. Az alábbi címen generálhatsz sajátot: https://platform.openai.com/account/api-keys")
         elif data["openai"] == "OPEN_AI_SECRET_KEY":
             raise ValueError(f"Elfelejtettél beállítani OpenAI API kulcsot a '{file}' fájlban. Saját kulcsot itt generálhatsz: https://platform.openai.com/account/api-keys")
-        if "model" not in data.keys():
-            data["model"] = "gpt-3.5-turbo"  # gpt-4-32k
+        if "rate_limit_per_minute" not in data:
+            data["rate_limit_per_minute"] = 20
         if "website" not in data:
             data["website"] = "https://www.inf.elte.hu/"
         if "user_agent" not in data:
-            data["user_agent"] = f"Mozilla/5.0 (compatible; EDIH_GPT/{self.VERSION}; +{data['website']})"
+            data["user_agent"] = f"Mozilla/5.0 (compatible; EDIH/{self.VERSION}; +{data['website']})"
+        return data
+    
+    def _setup_openai_api(self):
+        openai.api_key = self._system["openai"]
+    
+    def _rate_limit_alert(self):
+        warnings.warn("Túl gyorsan küldöd az üzeneteket, az OpenAI ideiglenesen lekorlátozhatja a kéréseket!", EDIH_WARNING)
+       
+    def retry_with_exponential_backoff(
+        self,
+        func,
+        max_retries: int = 3,
+        errors: tuple = (openai.error.RateLimitError,),
+    ):
+        """Retry a function with exponential backoff based on https://github.com/openai/openai-cookbook/blob/main/examples/How_to_handle_rate_limits.ipynb"""
+        def wrapper(*args, **kwargs):
+            # Initialize variables
+            num_retries = 0
+            delay = 60. / self._system["rate_limit_per_minute"]
+
+            # Loop until a successful response or max_retries is hit or an exception is raised
+            while True:
+                try:
+                    return func(*args, **kwargs)
+
+                # Retry on specified errors
+                except errors as e:
+                    # Increment retries
+                    num_retries += 1
+                    self._rate_limit_alert()
+                    
+                    # Check if max retries has been reached
+                    if num_retries > max_retries:
+                        raise ValueError(f"Nem sikerült elküldeni az üzenetet {max_retries} újrapróbálkozás után sem. Valószínűleg az OpenAI ideiglenesen letiltott túlzott használat miatt.")
+
+                    # Increment the delay
+                    delay *= 2. * (1 + np.random.random())
+
+                    # Sleep for the delay
+                    time.sleep(delay)
+
+                # Raise exceptions for any errors not specified
+                except Exception as e:
+                    raise e
+
+        return wrapper
+
+
+class ChatGPT(EDIH_CORE):
+    
+    COMMANDS = ["DATE", "FILE", "URL", "CSV", "EXCEL", "JSON"]
+    
+    def __init__(self, 
+                 context: Optional[str] = None,
+                 **kwargs) -> None:
+        super().__init__(**kwargs)
+        if isinstance(context, Enum):
+            self._context = context.value
+        else:
+            self._context = str(context)
+        self.reset()
+        
+    def _validate_system_data(self, file: str) -> dict:
+        data = super()._validate_system_data(file)
+        if "model" not in data.keys():
+            data["model"] = "gpt-3.5-turbo"  # gpt-4-32k
         if "parse" not in data:
             data["parse"] = deepcopy(self.COMMANDS)
         elif not data["parse"]:
             data["parse"] = []
         return data
-    
-    def _setup_openai_api(self):
-        openai.api_key = self._system["openai"]
     
     def reset(self):
         self.history = []
@@ -200,10 +253,10 @@ class EDIH_GPT:
         return text
         
     def _content_filter_alert(self):
-        warnings.warn("Ez az üzenet sérti a moderálási irányelveinket!", EDIH_GPT_WARNING)
+        warnings.warn("Ez az üzenet sérti a moderálási irányelveinket!", EDIH_WARNING)
         
     def _content_length_alert(self):
-        warnings.warn("Az üzenetet levágtuk, mert hosszabb a megengedettnél!", EDIH_GPT_WARNING)
+        warnings.warn("Az üzenetet levágtuk, mert hosszabb a megengedettnél!", EDIH_WARNING)
     
     def chat(self, 
              content: str, 
@@ -213,7 +266,8 @@ class EDIH_GPT:
         
         now = time.time()
         self.total_api_calls += 1
-        response = openai.ChatCompletion.create(
+        call = self.retry_with_exponential_backoff(openai.ChatCompletion.create)
+        response = call(
             model = self._system["model"],
             messages = self.messages,
             n = 1,
